@@ -156,6 +156,7 @@ def wiki2_sota():
   depth = 10
   learning_rate = 0.2
   lr_decay = 1.03
+  norm_scale = 0.05
   weight_decay = 1e-7
   max_grad_norm = 10
   num_steps = 35
