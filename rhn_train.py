@@ -397,7 +397,7 @@ def main(data_path, dataset, seed, _run):
         best_val = valid_perplexity
         log_info("Best Batched Valid Perplexity improved to %.03f" % best_val)
         save_path = saver.save(session, pjoin(config.run_dir, dataset + "_" + str(seed) + "_best_model.ckpt"))
-        log_info("Saved to:", save_path)
+        log_info("Saved to:" + save_path)
 
       _run.info['epoch_nr'] = i + 1
       _run.info['nr_parameters'] = mtrain.nvars.item()
