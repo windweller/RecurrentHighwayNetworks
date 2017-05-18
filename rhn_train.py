@@ -147,6 +147,7 @@ def text8_sota():
   tied = False
   vocab_size = 27
 
+@ex.named_config
 def wiki2_sota():
   data_path = 'data/wikitext-2/'
   dataset = 'wikitext-2'
