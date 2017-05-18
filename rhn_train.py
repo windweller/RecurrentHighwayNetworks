@@ -15,6 +15,7 @@ import tensorflow as tf
 from sacred import Experiment
 from rhn import Model
 from data.reader import data_iterator
+from os.path import join as pjoin
 
 ex = Experiment('rhn_prediction')
 logging = tf.logging
@@ -66,13 +67,14 @@ def ptb_sota():
   init_scale = 0.04
   init_bias = -2.0
   num_layers = 1
-  depth = 10
+  depth = 8
   learning_rate = 0.2
+  norm_scale=0.05
   lr_decay = 1.02
   weight_decay = 1e-7
   max_grad_norm = 10
   num_steps = 35
-  hidden_size = 830
+  hidden_size = 890
   max_epoch = 20
   max_max_epoch = 500
   batch_size = 20
@@ -80,7 +82,7 @@ def ptb_sota():
   drop_i = 0.75
   drop_h = 0.25
   drop_o = 0.75
-  tied = True
+  tied = False
   vocab_size = 10000
 
 
@@ -188,6 +190,7 @@ def run_epoch(session, m, data, eval_op, config, verbose=False):
   epoch_size = ((len(data) // m.batch_size) - 1) // m.num_steps
   start_time = time.time()
   costs = 0.0
+  ixh_total = 0.0
   iters = 0
   state = [x.eval() for x in m.initial_state]
   for step, (x, y) in enumerate(data_iterator(data, m.batch_size, m.num_steps)):
@@ -195,12 +198,14 @@ def run_epoch(session, m, data, eval_op, config, verbose=False):
     feed_dict = {m.input_data: x, m.targets: y,
                  m.noise_x: noise_x, m.noise_i: noise_i, m.noise_h: noise_h, m.noise_o: noise_o}
     feed_dict.update({m.initial_state[i]: state[i] for i in range(m.num_layers)})
-    cost, state, _ = session.run([m.cost, m.final_state, eval_op], feed_dict)
+    cost, state, ixh, _ = session.run([m.cost, m.final_state, m.ixh, eval_op], feed_dict)
     costs += cost
+    ixh_total += ixh
     iters += m.num_steps
 
     if verbose and step % (epoch_size // 10) == 10:
-      print("%.3f perplexity: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
+      print("%.3f perplexity: %.3f ixh: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
+                                                      ixh_total / iters,
                                                        iters * m.batch_size / (time.time() - start_time)))
 
   return np.exp(costs / iters)
@@ -261,6 +266,7 @@ def run_mc_epoch(seed, session, m, data, eval_op, config, mc_steps, verbose=Fals
     epoch_size = ((len(data) // m.batch_size) - 1) // m.num_steps
     start_time = time.time()
     costs = 0.0
+    total_ixh = 0.0
     iters = 0
     state = [x.eval() for x in m.initial_state]
 
@@ -270,12 +276,14 @@ def run_mc_epoch(seed, session, m, data, eval_op, config, mc_steps, verbose=Fals
       feed_dict = {m.input_data: x, m.targets: y,
                    m.noise_x: noise_x, m.noise_i: noise_i, m.noise_h: noise_h, m.noise_o: noise_o}
       feed_dict.update({m.initial_state[i]: state[i] for i in range(m.num_layers)})
-      cost, state, _ = session.run([m.cost, m.final_state, eval_op], feed_dict)
+      cost, state, ixh, _ = session.run([m.cost, m.final_state, m.ixh, eval_op], feed_dict)
       costs += cost
+      total_ixh += ixh
       iters += m.num_steps
       all_probs[step] = np.exp(-cost)
       if verbose and step % (epoch_size // 10) == 10:
-        print("%.3f perplexity: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
+        print("%.3f perplexity: %.3f ixh: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
+                                                                   total_ixh / iters,
                                                          iters * m.batch_size / (time.time() - start_time)))
     perplexity = np.exp(costs / iters)
     print("Perplexity:", perplexity)
