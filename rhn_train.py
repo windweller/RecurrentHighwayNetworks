@@ -340,6 +340,8 @@ def evaluate_mc(data_path, dataset, load_model, mc_steps, seed):
 def main(data_path, dataset, seed, _run):
   config = get_config()
 
+  log_info(config.__dict__)
+
   if not os.path.exists(config.run_dir):
     os.makedirs(config.run_dir)
   file_handler = logging.FileHandler("{0}/log.txt".format(config.run_dir))
