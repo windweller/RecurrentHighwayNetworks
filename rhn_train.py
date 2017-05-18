@@ -36,6 +36,7 @@ def hyperparameters():
   learning_rate = 0.2
   lr_decay = 1.02
   weight_decay = 1e-7
+  norm_scale = 0.05
   max_grad_norm = 10
   num_steps = 35
   hidden_size = 1000
@@ -46,8 +47,9 @@ def hyperparameters():
   drop_i = 0.75
   drop_h = 0.25
   drop_o = 0.75
-  tied = True
+  tied = False
   load_model = ''
+  run_dir = 'sandbox'
   mc_steps = 0
   if dataset == 'ptb':
     vocab_size = 10000
@@ -84,6 +86,7 @@ def ptb_sota():
   drop_o = 0.75
   tied = False
   vocab_size = 10000
+  run_dir = 'sandbox'
 
 
 @ex.named_config
@@ -376,7 +379,7 @@ def main(data_path, dataset, seed, _run):
       if valid_perplexity < best_val:
         best_val = valid_perplexity
         print("Best Batched Valid Perplexity improved to %.03f" % best_val)
-        save_path = saver.save(session, './' + dataset + "_" + str(seed) + "_best_model.ckpt")
+        save_path = saver.save(session, pjoin(config.run_dir, dataset + "_" + str(seed) + "_best_model.ckpt"))
         print("Saved to:", save_path)
 
       _run.info['epoch_nr'] = i + 1
@@ -397,7 +400,7 @@ def main(data_path, dataset, seed, _run):
     _run.info['best_valid_perplexity'] = vals[best_val_epoch]
 
     with tf.Session() as sess:
-      saver.restore(sess, './'  + dataset + "_" + str(seed) + "_best_model.ckpt")
+      saver.restore(sess, pjoin(config.run_dir,  dataset + "_" + str(seed) + "_best_model.ckpt"))
 
       print("Testing on non-batched Valid ...")
       valid_perplexity = run_epoch(sess, mtest, valid_data, tf.no_op(), config=test_config, verbose=True)
