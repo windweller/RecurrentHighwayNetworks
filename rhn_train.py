@@ -8,6 +8,7 @@ from __future__ import absolute_import, division, print_function
 from copy import deepcopy
 import time
 import os
+import logging
 
 import numpy as np
 import tensorflow as tf
@@ -18,7 +19,14 @@ from data.reader import data_iterator
 from os.path import join as pjoin
 
 ex = Experiment('rhn_prediction')
-logging = tf.logging
+logging.basicConfig(level=logging.INFO)
+
+# Getting stale file handle errors
+def log_info(s):
+    try:
+        logging.info(s)
+    except IOError:
+        time.sleep(60)
 
 class Config:
   pass
@@ -207,7 +215,7 @@ def run_epoch(session, m, data, eval_op, config, verbose=False):
     iters += m.num_steps
 
     if verbose and step % (epoch_size // 10) == 10:
-      print("%.3f perplexity: %.3f ixh: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
+      log_info("%.3f perplexity: %.3f ixh: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
                                                       ixh_total / iters,
                                                        iters * m.batch_size / (time.time() - start_time)))
 
@@ -218,7 +226,7 @@ def run_epoch(session, m, data, eval_op, config, verbose=False):
 def evaluate(data_path, dataset, load_model):
   """Evaluate the model on the given data."""
   ex.commands["print_config"]()
-  print("Evaluating model:", load_model)
+  log_info("Evaluating model:", load_model)
   reader, (train_data, valid_data, test_data, _) = get_data(data_path, dataset)
 
   config = get_config()
@@ -241,17 +249,17 @@ def evaluate(data_path, dataset, load_model):
     saver = tf.train.Saver()
     saver.restore(session, load_model)
 
-    print("Testing on batched Valid ...")
+    log_info("Testing on batched Valid ...")
     valid_perplexity = run_epoch(session, mvalid, valid_data, tf.no_op(), config=val_config)
-    print("Valid Perplexity (batched): %.3f, Bits: %.3f" % (valid_perplexity, np.log2(valid_perplexity)))
+    log_info("Valid Perplexity (batched): %.3f, Bits: %.3f" % (valid_perplexity, np.log2(valid_perplexity)))
 
-    print("Testing on non-batched Valid ...")
+    log_info("Testing on non-batched Valid ...")
     valid_perplexity = run_epoch(session, mtest, valid_data, tf.no_op(), config=test_config, verbose=True)
-    print("Full Valid Perplexity: %.3f, Bits: %.3f" % (valid_perplexity, np.log2(valid_perplexity)))
+    log_info("Full Valid Perplexity: %.3f, Bits: %.3f" % (valid_perplexity, np.log2(valid_perplexity)))
 
-    print("Testing on non-batched Test ...")
+    log_info("Testing on non-batched Test ...")
     test_perplexity = run_epoch(session, mtest, test_data, tf.no_op(), config=test_config, verbose=True)
-    print("Full Test Perplexity: %.3f, Bits: %.3f" % (test_perplexity, np.log2(test_perplexity)))
+    log_info("Full Test Perplexity: %.3f, Bits: %.3f" % (test_perplexity, np.log2(test_perplexity)))
 
 
 def run_mc_epoch(seed, session, m, data, eval_op, config, mc_steps, verbose=False):
@@ -260,12 +268,12 @@ def run_mc_epoch(seed, session, m, data, eval_op, config, mc_steps, verbose=Fals
   all_probs = np.array([0.0]*n_steps)
   sum_probs = np.array([0.0]*n_steps)
   mc_i = 1
-  print("Total MC steps to do:", mc_steps)
+  log_info("Total MC steps to do:" + str(mc_steps))
   if not os.path.isdir('./probs'):
-    print('Creating probs directory')
+    log_info('Creating probs directory')
     os.mkdir('./probs')
   while mc_i <= mc_steps:
-    print("MC sample number:", mc_i)
+    log_info("MC sample number:" + str(mc_i))
     epoch_size = ((len(data) // m.batch_size) - 1) // m.num_steps
     start_time = time.time()
     costs = 0.0
@@ -285,14 +293,14 @@ def run_mc_epoch(seed, session, m, data, eval_op, config, mc_steps, verbose=Fals
       iters += m.num_steps
       all_probs[step] = np.exp(-cost)
       if verbose and step % (epoch_size // 10) == 10:
-        print("%.3f perplexity: %.3f ixh: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
+        log_info("%.3f perplexity: %.3f ixh: %.3f speed: %.0f wps" % (step * 1.0 / epoch_size, np.exp(costs / iters),
                                                                    total_ixh / iters,
                                                          iters * m.batch_size / (time.time() - start_time)))
     perplexity = np.exp(costs / iters)
-    print("Perplexity:", perplexity)
+    log_info("Perplexity: %.3f" % perplexity)
     if perplexity < 500:
       savefile = 'probs/' + str(seed) + '_' + str(mc_i)
-      print("Accepted. Saving to:", savefile)
+      log_info("Accepted. Saving to:" + savefile)
       np.save(savefile, all_probs)
       sum_probs += all_probs
       mc_i += 1
@@ -304,7 +312,7 @@ def run_mc_epoch(seed, session, m, data, eval_op, config, mc_steps, verbose=Fals
 def evaluate_mc(data_path, dataset, load_model, mc_steps, seed):
   """Evaluate the model on the given data using MC averaging."""
   ex.commands['print_config']()
-  print("MC Evaluation of model:", load_model)
+  log_info("MC Evaluation of model:" + load_model)
   assert mc_steps > 0
   reader, (train_data, valid_data, test_data, _) = get_data(data_path, dataset)
 
@@ -323,18 +331,25 @@ def evaluate_mc(data_path, dataset, load_model, mc_steps, seed):
     saver = tf.train.Saver()
     saver.restore(session, load_model)
 
-    print("Testing on non-batched Test ...")
+    log_info("Testing on non-batched Test ...")
     test_perplexity = run_mc_epoch(seed, session, mtest, test_data, tf.no_op(), test_config, mc_steps, verbose=True)
-    print("Full Test Perplexity: %.3f, Bits: %.3f" % (test_perplexity, np.log2(test_perplexity)))
+    log_info("Full Test Perplexity: %.3f, Bits: %.3f" % (test_perplexity, np.log2(test_perplexity)))
 
 
 @ex.automain
 def main(data_path, dataset, seed, _run):
+  config = get_config()
+
+  if not os.path.exists(config.run_dir):
+    os.makedirs(config.run_dir)
+  file_handler = logging.FileHandler("{0}/log.txt".format(config.run_dir))
+  logging.getLogger().addHandler(file_handler)
+
   ex.commands['print_config']()
   np.random.seed(seed)
   reader, (train_data, valid_data, test_data, _) = get_data(data_path, dataset)
 
-  config = get_config()
+
   val_config = deepcopy(config)
   test_config = deepcopy(config)
   val_config.drop_x = test_config.drop_x = 0.0
@@ -361,16 +376,16 @@ def main(data_path, dataset, seed, _run):
       lr_decay = config.lr_decay ** max(i - config.max_epoch + 1, 0.0)
       mtrain.assign_lr(session, config.learning_rate / lr_decay)
 
-      print("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(mtrain.lr)))
+      log_info("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(mtrain.lr)))
       train_perplexity = run_epoch(session, mtrain, train_data, mtrain.train_op, config=config,
                                    verbose=True)
-      print("Epoch: %d Train Perplexity: %.3f, Bits: %.3f" % (i + 1, train_perplexity, np.log2(train_perplexity)))
+      log_info("Epoch: %d Train Perplexity: %.3f, Bits: %.3f" % (i + 1, train_perplexity, np.log2(train_perplexity)))
 
       valid_perplexity = run_epoch(session, mvalid, valid_data, tf.no_op(), config=val_config)
-      print("Epoch: %d Valid Perplexity (batched): %.3f, Bits: %.3f" % (i + 1, valid_perplexity, np.log2(valid_perplexity)))
+      log_info("Epoch: %d Valid Perplexity (batched): %.3f, Bits: %.3f" % (i + 1, valid_perplexity, np.log2(valid_perplexity)))
 
       test_perplexity = run_epoch(session, mvalid, test_data, tf.no_op(), config=val_config)
-      print("Epoch: %d Test Perplexity (batched): %.3f, Bits: %.3f" % (i + 1, test_perplexity, np.log2(test_perplexity)))
+      log_info("Epoch: %d Test Perplexity (batched): %.3f, Bits: %.3f" % (i + 1, test_perplexity, np.log2(test_perplexity)))
 
       trains.append(train_perplexity)
       vals.append(valid_perplexity)
@@ -378,22 +393,21 @@ def main(data_path, dataset, seed, _run):
 
       if valid_perplexity < best_val:
         best_val = valid_perplexity
-        print("Best Batched Valid Perplexity improved to %.03f" % best_val)
+        log_info("Best Batched Valid Perplexity improved to %.03f" % best_val)
         save_path = saver.save(session, pjoin(config.run_dir, dataset + "_" + str(seed) + "_best_model.ckpt"))
-        print("Saved to:", save_path)
+        log_info("Saved to:", save_path)
 
       _run.info['epoch_nr'] = i + 1
       _run.info['nr_parameters'] = mtrain.nvars.item()
       _run.info['logs'] = {'train_perplexity': trains, 'valid_perplexity': vals, 'test_perplexity': tests}
 
-
-    print("Training is over.")
+    log_info("Training is over.")
     best_val_epoch = np.argmin(vals)
-    print("Best Batched Validation Perplexity %.03f (Bits: %.3f) was at Epoch %d" %
+    log_info("Best Batched Validation Perplexity %.03f (Bits: %.3f) was at Epoch %d" %
           (vals[best_val_epoch], np.log2(vals[best_val_epoch]), best_val_epoch))
-    print("Training Perplexity at this Epoch was %.03f, Bits: %.3f" %
+    log_info("Training Perplexity at this Epoch was %.03f, Bits: %.3f" %
           (trains[best_val_epoch], np.log2(trains[best_val_epoch])))
-    print("Batched Test Perplexity at this Epoch was %.03f, Bits: %.3f" %
+    log_info("Batched Test Perplexity at this Epoch was %.03f, Bits: %.3f" %
           (tests[best_val_epoch], np.log2(tests[best_val_epoch])))
 
     _run.info['best_val_epoch'] = best_val_epoch
@@ -402,13 +416,13 @@ def main(data_path, dataset, seed, _run):
     with tf.Session() as sess:
       saver.restore(sess, pjoin(config.run_dir,  dataset + "_" + str(seed) + "_best_model.ckpt"))
 
-      print("Testing on non-batched Valid ...")
+      log_info("Testing on non-batched Valid ...")
       valid_perplexity = run_epoch(sess, mtest, valid_data, tf.no_op(), config=test_config, verbose=True)
-      print("Full Valid Perplexity: %.3f, Bits: %.3f" % (valid_perplexity, np.log2(valid_perplexity)))
+      log_info("Full Valid Perplexity: %.3f, Bits: %.3f" % (valid_perplexity, np.log2(valid_perplexity)))
 
-      print("Testing on non-batched Test ...")
+      log_info("Testing on non-batched Test ...")
       test_perplexity = run_epoch(sess, mtest, test_data, tf.no_op(), config=test_config, verbose=True)
-      print("Full Test Perplexity: %.3f, Bits: %.3f" % (test_perplexity, np.log2(test_perplexity)))
+      log_info("Full Test Perplexity: %.3f, Bits: %.3f" % (test_perplexity, np.log2(test_perplexity)))
 
       _run.info['full_best_valid_perplexity'] = valid_perplexity
       _run.info['full_test_perplexity'] = test_perplexity
