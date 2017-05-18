@@ -65,6 +65,8 @@ def hyperparameters():
     vocab_size = 205
   elif dataset == 'text8':
     vocab_size = 27
+  elif dataset == 'wikitext-2':
+    vocab_size = 33278
   else:
     raise AssertionError("Unsupported dataset! Only 'ptb',",
                          "'enwik8' and 'text8' are currently supported.")
