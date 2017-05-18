@@ -27,6 +27,7 @@ import os
 
 import numpy as np
 import tensorflow as tf
+from tensorflow.models.rnn.ptb.reader import _build_vocab, _file_to_word_ids
 
 
 def _read_symbols(filename):
@@ -86,6 +87,36 @@ def text8_raw_data(data_path=None, num_test_symbols=5000000):
   valid_data = data[-2 * num_test_symbols: -num_test_symbols]
   test_data = data[-num_test_symbols:]
   return train_data, valid_data, test_data, unique
+
+def wikitext2_raw_data(data_path=None):
+  """Load PTB raw data from data directory "data_path".
+
+  Reads PTB text files, converts strings to integer ids,
+  and performs mini-batching of the inputs.
+
+  The PTB dataset comes from Tomas Mikolov's webpage:
+
+  http://www.fit.vutbr.cz/~imikolov/rnnlm/simple-examples.tgz
+
+  Args:
+    data_path: string path to the directory where simple-examples.tgz has
+      been extracted.
+
+  Returns:
+    tuple (train_data, valid_data, test_data, vocabulary)
+    where each of the data objects can be passed to PTBIterator.
+  """
+
+  train_path = os.path.join(data_path, "wiki.train.tokens")
+  valid_path = os.path.join(data_path, "wiki.valid.tokens")
+  test_path = os.path.join(data_path, "wiki.test.tokens")
+
+  word_to_id = _build_vocab(train_path)
+  train_data = _file_to_word_ids(train_path, word_to_id)
+  valid_data = _file_to_word_ids(valid_path, word_to_id)
+  test_data = _file_to_word_ids(test_path, word_to_id)
+  vocabulary = len(word_to_id)
+  return train_data, valid_data, test_data, vocabulary
 
 
 def data_iterator(raw_data, batch_size, num_steps):

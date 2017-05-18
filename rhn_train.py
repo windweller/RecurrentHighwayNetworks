@@ -147,6 +147,29 @@ def text8_sota():
   tied = False
   vocab_size = 27
 
+def wiki2_sota():
+  data_path = 'data/wikitext-2/'
+  dataset = 'wikitext-2'
+  init_scale = 0.04
+  init_bias = -4.0
+  num_layers = 1
+  depth = 10
+  learning_rate = 0.2
+  lr_decay = 1.03
+  weight_decay = 1e-7
+  max_grad_norm = 10
+  num_steps = 35
+  hidden_size = 1500
+  max_epoch = 5
+  max_max_epoch = 500
+  batch_size = 20
+  drop_x = 0.10
+  drop_i = 0.40
+  drop_h = 0.10
+  drop_o = 0.40
+  tied = False
+  vocab_size = 33278
+
 
 @ex.capture
 def get_config(_config):
@@ -165,6 +188,9 @@ def get_data(data_path, dataset):
   elif dataset == 'text8':
     from data import reader
     raw_data = reader.text8_raw_data(data_path)
+  elif dataset == 'wikitext-2':
+    from data import reader
+    raw_data = reader.wikitext2_raw_data(data_path)
   return reader, raw_data
 
 
